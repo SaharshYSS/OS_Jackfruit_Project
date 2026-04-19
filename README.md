@@ -4,8 +4,10 @@ A lightweight container runtime built from scratch using core Operating Systems 
 
 ---
 ## Authors
-Yerramilli Siva Sai Saharsh PES2UG24CS618  Yadunandana Reddy PES2UG24CS605
+Yerramilli Siva Sai Saharsh PES2UG24CS618  
+Yadunandana Reddy M PES2UG24CS605
 
+---
 ## What This Project Does
 
 OS-Jackfruit lets you spin up isolated containers where processes run in their own environment, with separate filesystems and controlled resource limits. A central supervisor manages all containers, handles their lifecycle, and collects logs — all through a simple CLI.
