@@ -3,6 +3,8 @@
 A lightweight container runtime built from scratch using core Operating Systems concepts. Inspired by how Docker works under the hood, this project demonstrates process isolation, resource control, kernel-level memory monitoring, and inter-process communication — all implemented in C on Linux.
 
 ---
+## Authors
+Yerramilli Siva Sai Saharsh PES2UG24CS618  Yadunandana Reddy PES2UG24CS605
 
 ## What This Project Does
 
@@ -198,5 +200,4 @@ make ci
 - Workload binaries (`/cpu_hog`, `/io_pulse`, `/memory_hog`) must be present inside the respective rootfs directory
 - Always start the supervisor before running any container commands
 
-## Authors
-Yerramilli Siva Sai Saharsh PES2UG24CS618  Yadunandana Reddy PES2UG24CS605
+
