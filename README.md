@@ -1,202 +1,111 @@
-# OS-Jackfruit — Mini Container Runtime
+# Multi-Container Runtime
 
-A lightweight container runtime built from scratch using core Operating Systems concepts. Inspired by how Docker works under the hood, this project demonstrates process isolation, resource control, kernel-level memory monitoring, and inter-process communication — all implemented in C on Linux.
+A lightweight Linux container runtime in C with a long-running supervisor and a kernel-space memory monitor.
 
----
-
-## What This Project Does
-
-OS-Jackfruit lets you spin up isolated containers where processes run in their own environment, with separate filesystems and controlled resource limits. A central supervisor manages all containers, handles their lifecycle, and collects logs — all through a simple CLI.
+Read [`project-guide.md`](project-guide.md) for the full project specification.
 
 ---
 
-## Features
+## Getting Started
 
-- Isolated containers using Linux namespaces and `chroot`
-- Central supervisor process managing multiple containers concurrently
-- CLI commands: `run`, `start`, `stop`, `ps`, `logs`
-- Logging pipeline built on a producer–consumer model with a bounded buffer
-- UNIX domain socket-based IPC between the CLI and supervisor
-- Loadable kernel module (`monitor.ko`) that tracks per-container memory usage
-- Soft limit → warning via `dmesg`; Hard limit → process termination
-- Clean container lifecycle: created → running → exited
+### 1. Fork the Repository
 
----
+1. Go to [github.com/shivangjhalani/OS-Jackfruit](https://github.com/shivangjhalani/OS-Jackfruit)
+2. Click **Fork** (top-right)
+3. Clone your fork:
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────┐
-│                   CLI (engine)                  │
-│   run | start | stop | ps | logs                │
-└───────────────────┬─────────────────────────────┘
-                    │  UNIX Domain Socket
-                    ▼
-┌─────────────────────────────────────────────────┐
-│              Supervisor Process                 │
-│  - Manages container records                    │
-│  - Spawns isolated child processes              │
-│  - Handles logging via bounded buffer           │
-│  - Communicates with kernel module via ioctl    │
-└───────────────────┬─────────────────────────────┘
-                    │  ioctl
-                    ▼
-┌─────────────────────────────────────────────────┐
-│           Kernel Module (monitor.ko)            │
-│  - Registers containers with PID               │
-│  - Tracks RSS memory usage                      │
-│  - Enforces soft + hard memory limits           │
-│  - Exposes /dev/container_monitor               │
-└─────────────────────────────────────────────────┘
+```bash
+git clone https://github.com/<your-username>/OS-Jackfruit.git
+cd OS-Jackfruit
 ```
 
----
+### 2. Set Up Your VM
 
-## File Structure
-
-```
-boilerplate/
-├── engine.c              # User-space runtime: supervisor + CLI dispatcher
-├── monitor.c             # Kernel module: memory tracking and enforcement
-├── monitor_ioctl.h       # Shared ioctl interface (user ↔ kernel)
-├── Makefile              # Build system
-├── cpu_hog.c             # CPU-intensive workload
-├── memory_hog.c          # Memory-intensive workload
-├── io_pulse.c            # I/O workload
-├── logs/                 # Container log output directory
-├── rootfs-alpha/         # Rootfs for alpha containers
-├── rootfs-beta/          # Rootfs for beta containers
-└── rootfs-base/          # Base rootfs with busybox utilities
-```
-
----
-
-## Build Instructions
+You need an **Ubuntu 22.04 or 24.04** VM with **Secure Boot OFF**. WSL will not work.
 
 Install dependencies:
+
 ```bash
-sudo apt update && sudo apt install -y gcc build-essential linux-headers-$(uname -r)
+sudo apt update
+sudo apt install -y build-essential linux-headers-$(uname -r)
 ```
 
-Build everything:
+### 3. Run the Environment Check
+
 ```bash
+cd boilerplate
+chmod +x environment-check.sh
+sudo ./environment-check.sh
+```
+
+Fix any issues reported before moving on.
+
+### 4. Prepare the Root Filesystem
+
+```bash
+mkdir rootfs-base
+wget https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-3.20.3-x86_64.tar.gz
+tar -xzf alpine-minirootfs-3.20.3-x86_64.tar.gz -C rootfs-base
+
+# Make one writable copy per container you plan to run
+cp -a ./rootfs-base ./rootfs-alpha
+cp -a ./rootfs-base ./rootfs-beta
+```
+
+Do not commit `rootfs-base/` or `rootfs-*` directories to your repository.
+
+### 5. Understand the Boilerplate
+
+The `boilerplate/` folder contains starter files:
+
+| File                   | Purpose                                             |
+| ---------------------- | --------------------------------------------------- |
+| `engine.c`             | User-space runtime and supervisor skeleton          |
+| `monitor.c`            | Kernel module skeleton                              |
+| `monitor_ioctl.h`      | Shared ioctl command definitions                    |
+| `Makefile`             | Build targets for both user-space and kernel module |
+| `cpu_hog.c`            | CPU-bound test workload                             |
+| `io_pulse.c`           | I/O-bound test workload                             |
+| `memory_hog.c`         | Memory-consuming test workload                      |
+| `environment-check.sh` | VM environment preflight check                      |
+
+Use these as your starting point. You are free to restructure the repository however you want — the submission requirements are listed in the project guide.
+
+### 6. Build and Verify
+
+```bash
+cd boilerplate
 make
 ```
 
-Load the kernel module:
+If this compiles without errors, your environment is ready.
+
+### 7. GitHub Actions Smoke Check
+
+Your fork will inherit a minimal GitHub Actions workflow from this repository.
+
+That workflow only performs CI-safe checks:
+
+- `make -C boilerplate ci`
+- user-space binary compilation (`engine`, `memory_hog`, `cpu_hog`, `io_pulse`)
+- `./boilerplate/engine` with no arguments must print usage and exit with a non-zero status
+
+The CI-safe build command is:
+
 ```bash
-sudo insmod monitor.ko
-lsmod | grep monitor
-ls -l /dev/container_monitor
+make -C boilerplate ci
 ```
+
+This smoke check does not test kernel-module loading, supervisor runtime behavior, or container execution.
 
 ---
 
-## Running the System
+## What to Do Next
 
-### 1. Start the Supervisor
-```bash
-sudo ./engine supervisor ../rootfs-base
-```
+Read [`project-guide.md`](project-guide.md) end to end. It contains:
 
-### 2. Start Containers (new terminal)
-```bash
-sudo ./engine run test ../rootfs-alpha /bin/sh
-sudo ./engine start cpu ../rootfs-alpha /cpu_hog
-sudo ./engine start io ../rootfs-beta /io_pulse
-```
+- The six implementation tasks (multi-container runtime, CLI, logging, kernel monitor, scheduling experiments, cleanup)
+- The engineering analysis you must write
+- The exact submission requirements, including what your `README.md` must contain (screenshots, analysis, design decisions)
 
-### 3. List All Containers
-```bash
-sudo ./engine ps
-```
-
-### 4. View Container Logs
-```bash
-sudo ./engine logs cpu
-```
-
----
-
-## Memory Limit Enforcement
-
-```bash
-sudo dmesg -C
-sudo ./engine start mem ../rootfs-alpha /memory_hog
-sleep 2
-sudo dmesg | tail
-```
-
-Expected kernel output:
-```
-[container_monitor] Registering container=mem pid=XXXX soft=... hard=...
-[container_monitor] SOFT LIMIT container=mem pid=XXXX rss=... limit=...
-[container_monitor] HARD LIMIT container=mem pid=XXXX rss=... limit=...
-[container_monitor] Unregister request container=mem pid=XXXX
-```
-
-- **Soft limit** — logs a warning to the kernel ring buffer
-- **Hard limit** — sends `SIGKILL` to the container process
-
----
-
-## Scheduling Demo
-
-```bash
-sudo ./engine run test ../rootfs-alpha /bin/ls
-sudo ./engine start alpha ../rootfs-alpha /bin/ls
-sudo ./engine start beta ../rootfs-beta /bin/ls
-sudo ./engine ps
-```
-
-This demonstrates multiple containers running concurrently with different workload profiles, showing the scheduler handling CPU-bound and I/O-bound processes simultaneously.
-
----
-
-## Clean Teardown
-
-```bash
-ps aux | grep engine
-sudo pkill -9 engine
-ps aux | grep engine
-```
-
-Unload the kernel module:
-```bash
-sudo rmmod monitor
-```
-
----
-
-## OS Concepts Demonstrated
-
-| Concept | Where |
-|---|---
-| Process isolation | `chroot` + Linux namespaces in `engine.c` |
-| Inter-process communication | UNIX domain sockets (CLI ↔ supervisor) |
-| Synchronization | Bounded buffer with mutex + condition variables |
-| Producer–consumer | Log reader thread + logging thread |
-| Kernel-user interaction | `ioctl` calls to `/dev/container_monitor` |
-| Memory resource management | Soft/hard limits enforced by kernel module |
-| Scheduling | Multiple concurrent containers with different workloads |
-| Atomic operations | Temp-file + rename for log writes |
-
----
-
-## Build/CI Check
-
-```bash
-make ci
-```
-
----
-
-## Notes
-
-- Use **Ubuntu 22.04** for compatibility with the kernel module
-- The `logs/` directory must exist before starting containers: `mkdir -p logs`
-- Workload binaries (`/cpu_hog`, `/io_pulse`, `/memory_hog`) must be present inside the respective rootfs directory
-- Always start the supervisor before running any container commands# OS_Jackfruit_Project
-
-## Authors
-Yerramilli Siva Sai Saharsh PES2UG24CS618  Yadunandana Reddy PES2UG24CS605
+Your fork's `README.md` should be replaced with your own project documentation as described in the submission package section of the project guide. (As in get rid of all the above content and replace with your README.md)
